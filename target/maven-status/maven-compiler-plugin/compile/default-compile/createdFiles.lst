@@ -1,0 +1,6 @@
+com/example/demo/DemoApplication.class
+com/example/demo/controller/HelloController.class
+com/example/demo/repository/PersonRepository.class
+com/example/demo/config/CorsConfig.class
+com/example/demo/config/OpenApiConfig.class
+com/example/demo/model/Person.class
