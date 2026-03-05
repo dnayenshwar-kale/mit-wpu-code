@@ -2,6 +2,8 @@
 
 A comprehensive Spring Boot application with REST API, JPA database integration, Swagger documentation, and full Azure deployment support.
 
+<!-- Dummy commit to trigger workflow -->
+
 ## Features
 
 - ✅ REST API with CRUD operations
