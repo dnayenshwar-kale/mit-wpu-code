@@ -10,6 +10,12 @@ on:
   workflow_dispatch:
 
 jobs:
+  trigger-test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Echo trigger
+      run: echo "Workflow triggered on push to master"
+
   build-and-test:
     runs-on: ubuntu-latest
 
