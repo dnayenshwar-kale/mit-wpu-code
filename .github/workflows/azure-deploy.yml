@@ -1,0 +1,108 @@
+name: Deploy to Azure
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+        - dev
+        - staging
+        - prod
+      target:
+        description: 'Deployment target'
+        required: true
+        default: 'aks'
+        type: choice
+        options:
+        - aks
+        - appservice
+        - vm
+
+jobs:
+  deploy-to-aks:
+    if: inputs.target == 'aks'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Set AKS context
+      uses: azure/aks-set-context@v3
+      with:
+        resource-group: ${{ secrets.AZURE_RESOURCE_GROUP }}
+        cluster-name: ${{ secrets.AZURE_AKS_CLUSTER }}
+
+    - name: Deploy to AKS
+      run: |
+        # Update the deployment manifest with the latest image
+        sed -i "s|ghcr.io/dnayenshwar-kale/mit-wpu-code:latest|ghcr.io/${{ github.repository }}:latest|g" azure/aks-deployment.yaml
+
+        # Apply the deployment
+        kubectl apply -f azure/aks-deployment.yaml
+
+        # Wait for rollout to complete
+        kubectl rollout status deployment/demo-app
+
+  deploy-to-appservice:
+    if: inputs.target == 'appservice'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Deploy to Azure App Service
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ secrets.AZURE_APP_SERVICE_NAME }}
+        images: 'ghcr.io/${{ github.repository }}:latest'
+
+  deploy-to-vm:
+    if: inputs.target == 'vm'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Deploy to Azure VM
+      uses: azure/vm-run-command@v1
+      with:
+        vm-name: ${{ secrets.AZURE_VM_NAME }}
+        resource-group: ${{ secrets.AZURE_RESOURCE_GROUP }}
+        script: |
+          #!/bin/bash
+          cd /opt/demo-app
+          docker pull ghcr.io/${{ github.repository }}:latest
+          docker stop demo-app || true
+          docker rm demo-app || true
+          docker run -d --name demo-app --restart unless-stopped -p 8080:8080 \
+            -e SPRING_PROFILES_ACTIVE=prod,azure \
+            -e AZURE_DB_URL="${{ secrets.AZURE_DB_URL }}" \
+            -e AZURE_DB_USERNAME="${{ secrets.AZURE_DB_USERNAME }}" \
+            -e AZURE_DB_PASSWORD="${{ secrets.AZURE_DB_PASSWORD }}" \
+            -e APPINSIGHTS_INSTRUMENTATIONKEY="${{ secrets.APPINSIGHTS_INSTRUMENTATIONKEY }}" \
+            ghcr.io/${{ github.repository }}:latest
